@@ -1,6 +1,6 @@
 # Docling Flyers
 
-Experiment to use docling together with Granite 3.2 Vision model to parse PDF representing flyers of local general stores.
+Experiment to use docling together with Granite 3.2 Vision model to parse PDF representing flyers of local general stores. This experiment is optimized to run in macOS.
 
 ## Execution
 
@@ -22,7 +22,7 @@ pip install docling tqdm ollama pypandoc
 
 ### LLM dependecies
 
-This experiments uses [ollama|https://ollama.com].
+This experiments uses [ollama](https://ollama.com).
 
 Get the model with `ollama pull granite3.2-vision:2b`.
 
@@ -58,9 +58,14 @@ pip install isort black autoflake pre-commit
 pre-commit install
 ```
 
-You can run `pre-commit` manually on all files: `pre-commit run --all-files`
-In case you want to also fix the files, you can run `pre-commit run --all-files --hook-stage manual`.
+You can run `pre-commit` manually on all files: 
 
 ```
+pre-commit run --all-files
+```
 
+In case you want to also fix the files, you can run: 
+
+```
+pre-commit run --all-files --hook-stage manual
 ```
