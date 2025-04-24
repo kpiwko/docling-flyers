@@ -6,7 +6,7 @@ Experiment to use docling together with Granite 3.2 Vision model to parse PDF re
 
 After dependencies are installed, you run:
 
-`python docling_default.py [-v]`
+`python docling_ocr.py [-v]`
 
 ## Installation
 

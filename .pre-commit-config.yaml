@@ -1,0 +1,70 @@
+# This file contains 2 stages
+# pre-commit stage - runs by default pre-commit
+# manual stage - runs the same tools but modifies files
+# run as: pre-commit run --all-files --hook-stage manual
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.1
+    hooks:
+      # Run the linter
+      - id: ruff
+        name: ruff (check)
+        stages: [pre-commit]
+      - id: ruff
+        name: ruff (fix)
+        args: [--fix]
+        stages: [manual]
+      # Run the formatter
+      - id: ruff-format
+        name: ruff format (check)
+        args: [--check]
+        stages: [pre-commit]
+      - id: ruff-format
+        name: ruff format (fix)
+        stages: [manual]
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.2.1
+    hooks:
+      - id: autoflake
+        name: autoflake (check)
+        args: [--check, --remove-all-unused-imports]
+        stages: [pre-commit]
+      - id: autoflake
+        name: autoflake (fix)
+        args: [--in-place, --remove-all-unused-imports]
+        stages: [manual]
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+        name: black (check)
+        args: [--check]
+        stages: [pre-commit]
+      - id: black
+        name: black (fix)
+        stages: [manual]
+  # TODO: Switch back to a regular release docformatter
+  # after https://github.com/PyCQA/docformatter/issues/289 fix is released
+  - repo: https://github.com/PyCQA/docformatter
+    rev: eb1df347edd128b30cd3368dddc3aa65edcfac38
+    hooks:
+      - id: docformatter
+        name: docformatter (check)
+        additional_dependencies: [tomli]
+        args: [--check, --config, ./pyproject.toml]
+        stages: [pre-commit]
+      - id: docformatter
+        name: docformatter (fix)
+        additional_dependencies: [tomli]
+        args: [--in-place, --config, ./pyproject.toml]
+        stages: [manual]
+  - repo: https://github.com/pycqa/isort
+    rev: 6.0.1
+    hooks:
+      - id: isort
+        name: isort (check)
+        args: [--check-only]
+        stages: [pre-commit]
+      - id: isort
+        name: isort (fix)
+        stages: [manual]
