@@ -1,9 +1,11 @@
 import base64
+import concurrent.futures
 import glob
 import io
 import logging
 from pathlib import Path
 import sys
+import uuid
 
 from docling_core.types.doc import ImageRefMode
 import ollama
@@ -21,6 +23,7 @@ from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
 
 VISION_MODEL = "granite3.2-vision:2b"
 DOCUMENT_LANGUAGES = ["ces", "slk", "eng"]
+TIMEOUT = 300
 
 PROMPTS = {
     "cz": {
@@ -46,7 +49,7 @@ if "-v" in sys.argv:
 LANGUAGE = "cz" if "-cz" in sys.argv else "en"
 logging.info("Setting language to %s", LANGUAGE)
 
-doc_paths = glob.glob("flyers/*.pdf")
+doc_paths = glob.glob("flyers/gl*.pdf")
 logging.debug("Processing %d files.", len(doc_paths))
 
 
@@ -57,6 +60,27 @@ def encode_image(image: PIL.Image.Image, format: str = "png") -> str:
     icc_profile = image.info.get("icc_profile")
     image.save(buffer, format, icc_profile=icc_profile)
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+
+def process_image(image):
+    image_base64 = encode_image(image)
+    response = ollama.chat(
+        model=VISION_MODEL,
+        messages=[
+            {"role": "system", "content": PROMPTS[LANGUAGE]["system"]},
+            {
+                "role": "user",
+                "content": PROMPTS[LANGUAGE]["image-description"],
+                "images": [image_base64],
+            },
+        ],
+    )
+
+    return response.message.content
+
+
+def save_timed_out_image(image: PIL.Image, image_path: Path | str):
+    image.save(image_path)
 
 
 pipeline_options = PdfPipelineOptions(
@@ -106,34 +130,39 @@ for doc in tqdm(doc_paths):
     # process images in the document by vision model and replace placeholders with their description
     markdown_parsed = str(text_content)
     markdown_embedded = str(text_content)
-    for pict in tqdm(images):
-        ref = pict.get_ref().cref
-        image = pict.get_image(result.document)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        for pict in tqdm(images):
+            ref = pict.get_ref().cref
+            image = pict.get_image(result.document)
 
-        if image:
-            # image.show() # show the image in UI
-            image_base64 = encode_image(image)
-
-            response = ollama.chat(
-                model=VISION_MODEL,
-                messages=[
-                    {"role": "system", "content": PROMPTS[LANGUAGE]["system"]},
-                    {
-                        "role": "user",
-                        "content": PROMPTS[LANGUAGE]["image-description"],
-                        "images": [image_base64],
-                    },
-                ],
-            )
-            description = response.message.content
-
-            logging.debug("Image '%s' replaced with description: %s", ref, description)
-            markdown_parsed = markdown_parsed.replace(PLACEHOLDER, description, 1)
-            markdown_embedded = markdown_embedded.replace(
-                PLACEHOLDER,
-                f"![{description}](data:image/png;base64,{image_base64})",
-                1,
-            )
+            if image:
+                image_base64 = encode_image(image)
+                future = executor.submit(process_image, image)
+                try:
+                    description = future.result(timeout=TIMEOUT)
+                    logging.debug(
+                        "Image '%s' replaced with description: %s", ref, description
+                    )
+                    markdown_parsed = markdown_parsed.replace(
+                        PLACEHOLDER, description, 1
+                    )
+                    markdown_embedded = markdown_embedded.replace(
+                        PLACEHOLDER,
+                        f"![{description}](data:image/png;base64,{image_base64})",
+                        1,
+                    )
+                except concurrent.futures.TimeoutError:
+                    image_path = output_dir / f"failed_image_{uuid.uuid4().hex}.png"
+                    message = f"Processing image timed out after {TIMEOUT} seconds, storing in {image_path}"
+                    logging.warning(message)
+                    markdown_parsed = markdown_parsed.replace(PLACEHOLDER, message, 1)
+                    markdown_embedded = markdown_embedded.replace(
+                        PLACEHOLDER,
+                        f"![{message}](data:image/png;base64,{image_base64})",
+                        1,
+                    )
+                    save_timed_out_image(image, image_path)
+                    continue
 
     for content, type in [(markdown_parsed, "parsed"), (markdown_embedded, "embedded")]:
         output_file = (
