@@ -7,6 +7,12 @@ from pathlib import Path
 import uuid
 
 import click
+from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.models.tesseract_ocr_model import TesseractOcrOptions
+from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
 from docling_core.types.doc import ImageRefMode
 from ollama import chat, ResponseError
 import PIL.Image
@@ -14,14 +20,8 @@ import PIL.ImageOps
 import pypandoc
 from tqdm import tqdm
 
-from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
-from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling.models.tesseract_ocr_model import TesseractOcrOptions
-from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
-
 VISION_MODEL = "granite3.2-vision:2b"
+GRAMMAR_MODEL = "gemma3:27b"
 DOCUMENT_LANGUAGES = ["ces", "slk", "eng"]
 TIMEOUT = 300
 IMAGE_RESOLUTION_SCALE = 2.0
@@ -33,6 +33,13 @@ PROMPTS = {
         "nebo nevíš, co s obrázkem dělat, vrať prázdný řetězec ''.",
         "image-description": "Popiš obrázek, graf, zvýrazni důležité hodnoty a vysvětli jej. "
         "Částky jsou v Kč a desetinná místa jsou oddělena čárkou.",
+        # "grammar-system": "Jsi uznávaný odborník, proslulý jako výjimečně talentovaný a efektivní copywriter v Češtině, "
+        # "pečlivý textový editor a vážený redaktor New York Times. Opravuješ pravopisné, gramatické a faktické chyby v obsahu, "
+        # "zlepšuješ srozumitelnost a zajišťuješ, že tvé psaní je uhlazené a profesionální. "
+        # "Zachováváš původní hlas a tón textu. Dostaneš spropitné 1000 $, pokud odpovíš pouze opraveným textem a ničím jiným, "
+        # "neposkytuj žádná vysvětlení, poznámky ani upřesnění.",
+        # "grammar-fix": "Oprav překlepy, chybějící slabiky a slabiky navíc v textu, který následuje `---\n\n`. "
+        # "Vrať celý text a HTML elementy neměň.",
     },
     "en": {
         "image-system": "You are an assistant describing images, charts and figures, consistently in high level of details. "
@@ -50,6 +57,24 @@ def encode_image(image: PIL.Image.Image, format: str = "png") -> str:
     icc_profile = image.info.get("icc_profile")
     image.save(buffer, format, icc_profile=icc_profile)
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+
+def fix_grammar(text: str, language):
+    try:
+        response = chat(
+            model=GRAMMAR_MODEL,
+            messages=[
+                {"role": "system", "content": PROMPTS[language]["grammar-system"]},
+                {
+                    "role": "user",
+                    "content": PROMPTS[language]["grammar-fix"] + f": ---\n\n {text}",
+                },
+            ],
+        )
+        return response.message.content
+    except ResponseError as e:
+        logging.error("Error: %s", e)
+        return str(e)
 
 
 def vision_llm_describe(image_base64, language):
@@ -86,7 +111,7 @@ def process_images(images, document, lang, no_vision, output_dir):
         concurrent.futures.ThreadPoolExecutor(max_workers=1) if not no_vision else None
     )
 
-    for pict in images:
+    for pict in tqdm(images, desc="Image processing: ", unit="img"):
         ref = pict.get_ref().cref
         image = pict.get_image(document)
         if not image:
@@ -123,9 +148,14 @@ def write_outputs(
     output_dir: Path | str,
     no_html: bool,
 ):
+    # if not is_embedded:
+    #     logging.info("Fixing grammar with %s model", GRAMMAR_MODEL)
+    #     content = fix_grammar(content, lang)
+
     suffix = "-embedded" if is_embedded else ""
     md_file = output_dir / f"{stem}-{lang}{suffix}.md"
     logging.info("Writing Markdown to %s", md_file)
+
     md_file.write_text(content)
 
     if not no_html:

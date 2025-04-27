@@ -7,6 +7,12 @@ from pathlib import Path
 import uuid
 
 import click
+from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.models.tesseract_ocr_model import TesseractOcrOptions
+from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
 from docling_core.types.doc import ImageRefMode
 from ollama import chat, ResponseError
 import PIL.Image
@@ -14,14 +20,8 @@ import PIL.ImageOps
 import pypandoc
 from tqdm import tqdm
 
-from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
-from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling.models.tesseract_ocr_model import TesseractOcrOptions
-from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
-
-VISION_MODEL = "granite3.2-vision:2b"
+## VISION_MODEL = "granite3.2-vision:2b"
+VISION_MODEL = "gemma3:27b"
 DOCUMENT_LANGUAGES = ["ces", "slk", "eng"]
 TIMEOUT = 300
 IMAGE_RESOLUTION_SCALE = 2.0
@@ -97,6 +97,7 @@ def process_images(images, document, lang, no_vision, output_dir):
             fut = executor.submit(vision_llm_describe, b64, lang)
             try:
                 desc = fut.result(timeout=TIMEOUT)
+                logging.debug("Vision Model description of '%s': %s", ref, desc)
             except concurrent.futures.TimeoutError:
                 desc = f"[Timed out after {TIMEOUT}s]"
                 path = output_dir / f"failed_image_{uuid.uuid4().hex}.png"
