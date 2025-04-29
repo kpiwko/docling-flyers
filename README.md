@@ -44,7 +44,7 @@ Python Dependencies
 ```
 pyenv createvirtualenv 3.12 docling
 pyenv activate docling
-pip install docling tqdm ollama pypandoc click
+pip install -r requirements.txt
 ```
 
 ### LLM dependecies
