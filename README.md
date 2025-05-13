@@ -1,6 +1,6 @@
 # Docling Examples
 
-Shows usage of `docling` together with Granite 3.2 Vision model to parse various PDF files.
+Shows usage of `docling` together with LLM Vision models to parse various PDF files.
 These examples optimized to run in macOS.
 
 - **Flyers** - representing flyers of local general stores in Czech language.
@@ -51,7 +51,7 @@ pip install -r requirements.txt
 
 This experiments uses [ollama](https://ollama.com).
 
-Get the model with `ollama pull granite3.2-vision:2b`.
+The best results in April 2025 are delivered by Gemma3. Get the model with `ollama pull gemma3:27b`.
 
 ### OCR Engines
 
